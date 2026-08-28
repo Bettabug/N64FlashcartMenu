@@ -26,6 +26,7 @@ SRCS = \
 	boot/cheats.c \
 	boot/cic.c \
 	boot/reboot.S \
+	boot/savestate_payload.S \
 	flashcart/64drive/64drive_ll.c \
 	flashcart/64drive/64drive.c \
 	flashcart/flashcart_utils.c \

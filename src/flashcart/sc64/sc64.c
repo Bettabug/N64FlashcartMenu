@@ -80,6 +80,8 @@ static const uint8_t vzone_to_pzone[DISK_TYPES][DISK_ZONES] = {
 
 static const uint8_t rom_zones[DISK_TYPES] = { 5, 7, 9, 11, 13, 15, 16 };
 
+static bool savestate_runtime_enabled = false;
+
 /**
  * @brief Load data to flash memory.
  * 
@@ -261,6 +263,8 @@ static flashcart_firmware_version_t sc64_get_firmware_version (void) {
  * @return flashcart_err_t Error code.
  */
 static flashcart_err_t sc64_init (void) {
+    savestate_runtime_enabled = false;
+
     uint16_t major;
     uint16_t minor;
     uint32_t revision;
@@ -319,9 +323,35 @@ static flashcart_err_t sc64_init (void) {
  * @return flashcart_err_t Error code.
  */
 static flashcart_err_t sc64_deinit (void) {
-    sc64_ll_set_config(CFG_ID_ROM_WRITE_ENABLE, false);
+    if (savestate_runtime_enabled) {
+        /* The in-game payload needs the cartridge SDRAM writable and the SC64
+         * configuration block unlocked so the physical button IRQ can be
+         * acknowledged while retail game code is running. */
+        return FLASHCART_OK;
+    }
 
+    sc64_ll_set_config(CFG_ID_ROM_WRITE_ENABLE, false);
     sc64_ll_lock();
+
+    return FLASHCART_OK;
+}
+
+flashcart_err_t sc64_set_savestate_runtime (bool enabled) {
+    savestate_runtime_enabled = enabled;
+
+    if (sc64_ll_set_config(CFG_ID_ROM_WRITE_ENABLE, enabled) != SC64_OK) {
+        return FLASHCART_ERR_INT;
+    }
+    if (sc64_ll_set_config(CFG_ID_BUTTON_MODE, enabled ? BUTTON_MODE_N64_IRQ : BUTTON_MODE_NONE) != SC64_OK) {
+        return FLASHCART_ERR_INT;
+    }
+
+    if (enabled) {
+        /* Snapshot metadata lives at physical 0x13800000. Invalidate any RAM
+         * state left by a previous boot before handing control to the game. */
+        io_write(ROM_ADDRESS + 0x03800000, 0);
+        io_write(ROM_ADDRESS + 0x03800004, 0);
+    }
 
     return FLASHCART_OK;
 }

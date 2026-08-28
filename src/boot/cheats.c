@@ -5,6 +5,8 @@
  */
 
 #include <libdragon.h>
+#include <stddef.h>
+#include <stdint.h>
 #include "boot_io.h"
 #include "cheats.h"
 #include "vr4300_asm.h"
@@ -14,7 +16,8 @@
 
 #define D_CACHE_LINE_SIZE (16)
 
-#define CAUSE_IRQ_PRE_NMI (1 << 12)
+#define CAUSE_IRQ_PRE_NMI (1 << 13)
+#define CAUSE_IRQ_CART    (1 << 12)
 #define CAUSE_EXC_CODE_MASK (0x7C)
 #define CAUSE_EXC_CODE_WATCH (0x5C)
 
@@ -25,6 +28,17 @@
 #define PATCHER_ADDRESS (0x80700000)
 #define ENGINE_TEMPORARY_ADDRESS (PATCHER_ADDRESS + 0x10000)
 #define DEFAULT_ENGINE_ADDRESS (0x807C5C00)
+
+/* Relocatable save-state payload assembled in savestate_payload.S. */
+extern uint32_t savestate_payload_start[];
+extern uint32_t savestate_payload_end[];
+extern uint32_t savestate_restore_stub_start[];
+extern uint32_t savestate_restore_stub_end[];
+extern uint32_t savestate_restore_post_dma[];
+extern uint32_t savestate_restore_jump_patch[];
+extern uint32_t savestate_restore_src_start_patch[];
+extern uint32_t savestate_restore_src_end_patch[];
+
 
 /** @brief Cheat structure */
 typedef struct {
@@ -146,6 +160,10 @@ static bool cheats_patch_ipl3 (cic_type_t cic_type, io32_t *target) {
  * @return true if successful, false otherwise.
  */
 static bool cheats_get_next (uint32_t **cheat_list, cheat_entry_t *cheat) {
+    if (!cheat_list || !(*cheat_list)) {
+        return false;
+    }
+
     cheat_t *c = &cheat->main;
     cheat->sub.type = 0;
 
@@ -179,6 +197,10 @@ static bool cheats_get_next (uint32_t **cheat_list, cheat_entry_t *cheat) {
  * @return io32_t* The engine address.
  */
 static io32_t *cheats_get_engine_address (uint32_t *cheat_list) {
+    if (!cheat_list) {
+        return (io32_t *)(DEFAULT_ENGINE_ADDRESS);
+    }
+
     cheat_entry_t cheat;
     while (cheats_get_next(&cheat_list, &cheat)) {
         if (cheat.main.type == SPECIAL_SET_STORE_LOCATION) {
@@ -206,8 +228,8 @@ static void cheats_update_cache (volatile void *start, volatile void *end) {
  * @param cheat_list Pointer to the cheat list.
  * @return true if successful, false otherwise.
  */
-bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list) {
-    if (!cheat_list) {
+bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list, bool savestate_enabled) {
+    if (!cheat_list && !savestate_enabled) {
         return false;
     }
 
@@ -268,6 +290,19 @@ bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list) {
 
     // Return from the exception
     *engine_p++ = I_ERET();
+
+    /* SummerCart64 physical-button interrupt. The jump target is patched after
+     * the final payload position is known. k0/k1 are the only registers touched
+     * before entering the payload, matching the exception ABI. */
+    io32_t *savestate_jump_slot = NULL;
+    if (savestate_enabled) {
+        *engine_p++ = I_MFC0(REG_K0, C0_REG_CAUSE);
+        *engine_p++ = I_ANDI(REG_K0, REG_K0, CAUSE_IRQ_CART);
+        *engine_p++ = I_BEQ(REG_K0, REG_ZERO, 3);
+        *engine_p++ = I_NOP();
+        savestate_jump_slot = engine_p++;
+        *engine_p++ = I_NOP();
+    }
 
     cheat_entry_t cheat;
 
@@ -364,6 +399,44 @@ bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list) {
 
     *engine_p++ = I_J(RELOCATED_EXCEPTION_HANDLER_ADDRESS);
     *engine_p++ = I_NOP();
+
+    if (savestate_enabled) {
+        io32_t *payload_temp = engine_p;
+        size_t payload_words = (size_t) (savestate_payload_end - savestate_payload_start);
+        for (size_t i = 0; i < payload_words; i++) {
+            *engine_p++ = savestate_payload_start[i];
+        }
+
+        uint32_t final_payload = (uint32_t) final_engine_address +
+            (uint32_t) ((payload_temp - engine_start) * sizeof(io32_t));
+        uint32_t stub_start = final_payload +
+            (uint32_t) ((savestate_restore_stub_start - savestate_payload_start) * sizeof(uint32_t));
+        uint32_t stub_end = final_payload +
+            (uint32_t) ((savestate_restore_stub_end - savestate_payload_start) * sizeof(uint32_t));
+        uint32_t post_dma = final_payload +
+            (uint32_t) ((savestate_restore_post_dma - savestate_payload_start) * sizeof(uint32_t));
+
+        *savestate_jump_slot = I_J(final_payload);
+
+        io32_t *src_start_patch = payload_temp +
+            (savestate_restore_src_start_patch - savestate_payload_start);
+        src_start_patch[0] = I_LUI(REG_T0, A_BASE(stub_start));
+        src_start_patch[1] = I_ADDIU(REG_T0, REG_T0, A_OFFSET(stub_start));
+
+        io32_t *src_end_patch = payload_temp +
+            (savestate_restore_src_end_patch - savestate_payload_start);
+        src_end_patch[0] = I_LUI(REG_T2, A_BASE(stub_end));
+        src_end_patch[1] = I_ADDIU(REG_T2, REG_T2, A_OFFSET(stub_end));
+
+        /* The restore stub runs from uncached SP IMEM (0xA4001000). A MIPS J
+         * from there can directly target the uncached 0xA0xxxxxx alias of the
+         * restored RDRAM payload. */
+        io32_t *post_dma_jump_patch = payload_temp +
+            (savestate_restore_jump_patch - savestate_payload_start);
+        uint32_t post_dma_uncached = (post_dma & 0x1FFFFFFF) | 0xA0000000;
+        post_dma_jump_patch[0] = I_J(post_dma_uncached);
+        post_dma_jump_patch[1] = I_NOP();
+    }
 
     uint32_t j_engine_from_handler = I_J((uint32_t)(final_engine_address));
 

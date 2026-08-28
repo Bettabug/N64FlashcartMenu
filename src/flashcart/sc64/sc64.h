@@ -18,6 +18,9 @@
 
 flashcart_t *sc64_get_flashcart (void);
 
+/** Enable/disable the experimental in-game save-state runtime configuration. */
+flashcart_err_t sc64_set_savestate_runtime (bool enabled);
+
 /** @} */ /* sc64 */
 
 

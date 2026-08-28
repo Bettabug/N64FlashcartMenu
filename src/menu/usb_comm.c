@@ -102,6 +102,7 @@ static void command_reboot (menu_t *menu) {
     menu->boot_params->detect_cic_seed = true;
     menu->boot_params->cheat_list = NULL;
     menu->boot_params->clear_rdram = false;
+    menu->boot_params->savestate_enabled = false;
 }
 
 /**

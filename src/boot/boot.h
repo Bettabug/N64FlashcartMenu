@@ -38,6 +38,7 @@ typedef struct {
     bool detect_cic_seed; /**< Flag to detect CIC seed */
     uint32_t *cheat_list; /**< Pointer to the cheat list */
     bool clear_rdram; /**< Zero RDRAM before handing off to IPL3 */
+    bool savestate_enabled; /**< Experimental SummerCart64 in-game save-state payload */
 } boot_params_t;
 
 /**

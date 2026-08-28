@@ -1,0 +1,27 @@
+SC64 Majora's Mask Save-State Prototype v0.1
+
+This is an OVERLAY, not a complete N64FlashcartMenu checkout.
+
+1. Clone N64FlashcartMenu with submodules:
+   git clone --recurse-submodules https://github.com/Polprzewodnikowy/N64FlashcartMenu.git N64FlashcartMenu-SaveState
+
+2. Copy the contents of this overlay folder into N64FlashcartMenu-SaveState,
+   preserving folders and choosing Replace/Overwrite when prompted.
+
+3. Build the project using its VS Code devcontainer, or push to a GitHub fork
+   and let GitHub Actions build it.
+
+4. The SummerCart output is:
+   output/sc64menu.n64
+
+TEST SCOPE
+- SummerCart64 only
+- The Legend of Zelda: Majora's Mask game code NZS (all regions)
+- Expansion Pak required
+- RAM-only state, lost on power-off/reset/new game boot
+- Physical SummerCart button alternates SAVE then LOAD
+
+WARNING
+Experimental hardware prototype. Back up your normal sc64menu.n64 and game saves.
+The feature does not intentionally write save-state data to the SD card, but a
+crash or reset at a bad time can still interfere with normal game save/writeback.

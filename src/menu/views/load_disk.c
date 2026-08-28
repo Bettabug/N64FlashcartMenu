@@ -287,12 +287,14 @@ static void load (menu_t *menu) {
         }
         menu->boot_params->cheat_list = NULL;
         menu->boot_params->clear_rdram = false;
+    menu->boot_params->savestate_enabled = false;
     } else {
         menu->boot_params->device_type = BOOT_DEVICE_TYPE_64DD;
         menu->boot_params->tv_type = BOOT_TV_TYPE_NTSC;
         menu->boot_params->detect_cic_seed = true;
         menu->boot_params->cheat_list = NULL;
         menu->boot_params->clear_rdram = false;
+    menu->boot_params->savestate_enabled = false;
     }
 }
 

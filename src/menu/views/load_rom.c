@@ -4,6 +4,7 @@
 #include "../rom_info.h"
 #include "../sound.h"
 #include "boot/boot.h"
+#include "flashcart/flashcart.h"
 #include "utils/fs.h"
 #include "views.h"
 #include <string.h>
@@ -837,6 +838,21 @@ static void load (menu_t *menu) {
     }
 
     menu->boot_params->clear_rdram = menu->load.rom_info.settings.clear_rdram_enabled;
+
+    /* Experimental SC64 save states are intentionally restricted to Majora's
+     * Mask for the first hardware prototype. All retail regions share the NZS
+     * product ID; an Expansion Pak is mandatory for the injected engine. */
+    bool is_majoras_mask =
+        (menu->load.rom_info.game_code[0] == 'N') &&
+        (menu->load.rom_info.game_code[1] == 'Z') &&
+        (menu->load.rom_info.game_code[2] == 'S');
+
+    menu->boot_params->savestate_enabled = false;
+    if (is_majoras_mask && is_memory_expanded()) {
+        menu->boot_params->savestate_enabled = flashcart_enable_savestate_runtime();
+        debugf("SC64 save-state prototype: %s\n",
+            menu->boot_params->savestate_enabled ? "enabled" : "not available");
+    }
 }
 
 static void deinit (void) {

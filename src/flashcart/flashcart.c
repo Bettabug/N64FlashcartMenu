@@ -213,6 +213,14 @@ flashcart_err_t flashcart_deinit (void) {
     return FLASHCART_OK;
 }
 
+bool flashcart_enable_savestate_runtime (void) {
+    if (cart_type != CART_SC) {
+        return false;
+    }
+
+    return (sc64_set_savestate_runtime(true) == FLASHCART_OK);
+}
+
 /**
  * @brief Check if the flashcart has a specific feature.
  * 

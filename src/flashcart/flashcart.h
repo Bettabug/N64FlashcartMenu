@@ -131,6 +131,9 @@ flashcart_err_t flashcart_init (const char **storage_prefix);
  */
 flashcart_err_t flashcart_deinit (void);
 
+/** Enable the experimental SC64 in-game save-state runtime. */
+bool flashcart_enable_savestate_runtime (void);
+
 /**
  * @brief Check if the flashcart has a specific feature.
  * 
