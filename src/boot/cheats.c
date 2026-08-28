@@ -16,8 +16,8 @@
 
 #define D_CACHE_LINE_SIZE (16)
 
-#define CAUSE_IRQ_PRE_NMI (1 << 13)
-#define CAUSE_IRQ_CART    (1 << 12)
+#define CAUSE_IRQ_PRE_NMI (1 << 12)
+#define CAUSE_IRQ_CART    (1 << 11)
 #define CAUSE_EXC_CODE_MASK (0x7C)
 #define CAUSE_EXC_CODE_WATCH (0x5C)
 
@@ -310,7 +310,8 @@ bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list, bool savestate_e
         *engine_p++ = I_MFC0(REG_K0, C0_REG_CAUSE);
         *engine_p++ = I_ANDI(REG_K1, REG_K0, CAUSE_EXC_CODE_MASK);
         branch_not_interrupt = engine_p++;
-        *engine_p++ = I_ANDI(REG_K1, REG_K0, 0x0100);
+        /* RCP/MI interrupts arrive on Cause.IP2 (bit 10 = 0x0400). */
+        *engine_p++ = I_ANDI(REG_K1, REG_K0, 0x0400);
         branch_no_mi = engine_p++;
         *engine_p++ = I_NOP();
 
