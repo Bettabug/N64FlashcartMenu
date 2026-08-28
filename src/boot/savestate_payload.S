@@ -29,7 +29,7 @@
 .equ SS_VERSION_VALUE,       0x00000001
 
 .equ SS_MAGIC,               0x000
-.equ SS_MODE,                0x004           /* 0 = next bare press saves, 1 = loads */
+.equ SS_MODE,                0x004           /* 0 = next combo press saves, 1 = loads */
 .equ SS_VERSION,             0x008
 .equ SS_FLAGS,               0x00C           /* bit 0 = FPU saved */
 .equ SS_EPC,                 0x010
@@ -123,15 +123,10 @@
 .global savestate_restore_src_end_patch
 
 savestate_payload_start:
-    /* Acknowledge the SC64 physical-button IRQ immediately. */
-    lui     $k0, 0xBFFF
-    lui     $k1, 0x8000
-    sw      $k1, 0x0014($k0)
-    nop
-
-    /* v0.1 deliberately uses only the SC64 physical button. Touching PIF
-     * RAM asynchronously is avoidable risk. First press saves, next press
-     * loads, then the sequence repeats. An invalid state always means save. */
+    /* Entry is requested by the VI-time controller-combo hook in cheats.c.
+     * The hook is edge-triggered with a cartridge-SDRAM latch, so holding the
+     * combo cannot repeatedly enter this payload on consecutive frames.
+     * First combo press saves, next combo press loads, then repeats. */
     lui     $k0, 0xB380
     lw      $k1, SS_MAGIC($k0)
     lui     $k0, 0x5353
@@ -368,14 +363,14 @@ savestate_restore_gprs_return:
     RESTORE_GPR $ra, 31
 
 savestate_return_to_game:
-    /* The SC64 IRQ is ours and has already been acknowledged. Return directly
-     * to the interrupted EPC instead of making libultra process a synthetic
-     * cartridge event. k0/k1 are reserved exception scratch registers. */
+    /* Return directly to the interrupted EPC. The pending VI is intentionally
+     * left for the game's normal exception handler on the next exception.
+     * k0/k1 are reserved exception scratch registers. */
     eret
     nop
 
 savestate_load:
-    /* Mark bare-button mode as SAVE for the next press. */
+    /* Mark mode as SAVE for the next combo press. */
     lui     $k0, 0xB380
     sw      $zero, SS_MODE($k0)
 
@@ -589,7 +584,7 @@ savestate_restore_post_dma:
     RESTORE_GPR $t9, 25
 
     /* Restore saved exception Status last, then ERET resumes the exact EPC
-     * captured on the save-button cartridge interrupt. */
+     * captured on the save-trigger interrupt. */
     lw      $k1, SS_STATUS($k0)
     mtc0    $k1, $12
     nop

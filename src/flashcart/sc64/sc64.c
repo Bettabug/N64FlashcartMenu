@@ -324,9 +324,9 @@ static flashcart_err_t sc64_init (void) {
  */
 static flashcart_err_t sc64_deinit (void) {
     if (savestate_runtime_enabled) {
-        /* The in-game payload needs the cartridge SDRAM writable and the SC64
-         * configuration block unlocked so the physical button IRQ can be
-         * acknowledged while retail game code is running. */
+        /* The in-game payload needs cartridge SDRAM writable while retail
+         * game code is running so snapshots and the controller latch can be
+         * stored outside RDRAM. */
         return FLASHCART_OK;
     }
 
@@ -342,7 +342,9 @@ flashcart_err_t sc64_set_savestate_runtime (bool enabled) {
     if (sc64_ll_set_config(CFG_ID_ROM_WRITE_ENABLE, enabled) != SC64_OK) {
         return FLASHCART_ERR_INT;
     }
-    if (sc64_ll_set_config(CFG_ID_BUTTON_MODE, enabled ? BUTTON_MODE_N64_IRQ : BUTTON_MODE_NONE) != SC64_OK) {
+    /* Save-state triggering is controller based, so no physical cart button
+     * support is required. */
+    if (sc64_ll_set_config(CFG_ID_BUTTON_MODE, BUTTON_MODE_NONE) != SC64_OK) {
         return FLASHCART_ERR_INT;
     }
 
