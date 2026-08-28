@@ -299,9 +299,6 @@ bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list, bool savestate_e
      * Combo: L + R + Z + C-Up (0x2038). First press saves, next press loads. */
     io32_t *savestate_jump_slot = NULL;
     if (savestate_enabled) {
-        const uint32_t mi_intr_reg = 0xA4300008;
-        const uint32_t pif_buttons = 0xBFC007C4;
-        const uint32_t latch_addr = 0xB38001C4;
         const uint16_t button_mask = 0x2038;
 
         io32_t *branch_not_interrupt;
@@ -317,31 +314,31 @@ bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list, bool savestate_e
         branch_no_mi = engine_p++;
         *engine_p++ = I_NOP();
 
-        *engine_p++ = I_LUI(REG_K0, A_BASE(mi_intr_reg));
-        *engine_p++ = I_LW(REG_K1, A_OFFSET(mi_intr_reg), REG_K0);
+        *engine_p++ = I_LUI(REG_K0, 0xA430);
+        *engine_p++ = I_LW(REG_K1, 0x0008, REG_K0);
         *engine_p++ = I_ANDI(REG_K1, REG_K1, 0x0008);
         branch_no_vi = engine_p++;
         *engine_p++ = I_NOP();
 
-        *engine_p++ = I_LUI(REG_K0, A_BASE(pif_buttons));
-        *engine_p++ = I_LHU(REG_K1, A_OFFSET(pif_buttons), REG_K0);
+        *engine_p++ = I_LUI(REG_K0, 0xBFC0);
+        *engine_p++ = I_LHU(REG_K1, 0x07C4, REG_K0);
         *engine_p++ = I_ORI(REG_K0, REG_ZERO, button_mask);
         *engine_p++ = I_AND(REG_K1, REG_K1, REG_K0);
         branch_combo_released = engine_p++;
         *engine_p++ = I_NOP();
 
-        *engine_p++ = I_LUI(REG_K0, A_BASE(latch_addr));
-        *engine_p++ = I_LW(REG_K1, A_OFFSET(latch_addr), REG_K0);
+        *engine_p++ = I_LUI(REG_K0, 0xB380);
+        *engine_p++ = I_LW(REG_K1, 0x01C4, REG_K0);
         branch_already_latched = engine_p++;
         *engine_p++ = I_NOP();
         *engine_p++ = I_ORI(REG_K1, REG_ZERO, 1);
-        *engine_p++ = I_SW(REG_K1, A_OFFSET(latch_addr), REG_K0);
+        *engine_p++ = I_SW(REG_K1, 0x01C4, REG_K0);
         savestate_jump_slot = engine_p++;
         *engine_p++ = I_NOP();
 
         io32_t *release_latch = engine_p;
-        *engine_p++ = I_LUI(REG_K0, A_BASE(latch_addr));
-        *engine_p++ = I_SW(REG_ZERO, A_OFFSET(latch_addr), REG_K0);
+        *engine_p++ = I_LUI(REG_K0, 0xB380);
+        *engine_p++ = I_SW(REG_ZERO, 0x01C4, REG_K0);
 
         io32_t *after_savestate_trigger = engine_p;
         *branch_not_interrupt = I_BNE(REG_K1, REG_ZERO, (int16_t)(after_savestate_trigger - (branch_not_interrupt + 1)));
@@ -355,11 +352,10 @@ bool cheats_install (cic_type_t cic_type, uint32_t *cheat_list, bool savestate_e
      * game session. Clear state magic/mode and the controller edge latch in
      * SC64 SDRAM from the boot patcher before control reaches the game. */
     if (savestate_enabled) {
-        const uint32_t state_meta = 0xB3800000;
-        *patcher_p++ = I_LUI(REG_K0, A_BASE(state_meta));
-        *patcher_p++ = I_SW(REG_ZERO, A_OFFSET(state_meta + 0x000), REG_K0);
-        *patcher_p++ = I_SW(REG_ZERO, A_OFFSET(state_meta + 0x004), REG_K0);
-        *patcher_p++ = I_SW(REG_ZERO, A_OFFSET(state_meta + 0x1C4), REG_K0);
+        *patcher_p++ = I_LUI(REG_K0, 0xB380);
+        *patcher_p++ = I_SW(REG_ZERO, 0x0000, REG_K0);
+        *patcher_p++ = I_SW(REG_ZERO, 0x0004, REG_K0);
+        *patcher_p++ = I_SW(REG_ZERO, 0x01C4, REG_K0);
     }
 
     cheat_entry_t cheat;
